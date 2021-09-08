@@ -1,0 +1,264 @@
+---
+title: "How Does a Bike-Share Navigate Speedy Success?"
+author: Daniel J.
+date: 9/1/2021
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Purpose Statement
+
+To help design marketing strategies to convert casual bike riders into annual members, the marketing analyst explored the company's historical bike trip data to answer:
+
+* How annual members and casual riders differ?;
+* Why would casual riders buy an annual membership?; and
+* How digital media could affect the company's marketing tactics?
+
+```{r}
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+install.packages("plyr", repos = "http://cran.us.r-project.org")
+install.packages("dplyr", repos = "http://cran.us.r-project.org")
+install.packages("scales", repos = "http://cran.us.r-project.org")
+library("tidyverse")
+library("plyr")
+library("dplyr")
+library("scales")
+library("zoo")
+```
+
+## Data Source
+**Note**: The data has been made available by Motivate International Inc. This is a public data that can be used to explore the customer demographics of the company.
+
+For this analysis, the marketing analyst used the company's bike trip data collected between April, 2020 and March, 2021. Each dataset is compiled in _csv_ extension and organized by per month. Hence, a total of 12 csv files were obtained. 
+
+
+## Data Cleaning
+Per review of the datasets, the analyst noted the data are unclean. The analyst decided to clean the datasets using R to help arrive to accurate datasets as possible.
+
+
+The marketing analyst imported each dataset as individual dataframes.
+
+```{r}
+bike_ride_202004 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202004-divvy-tripdata.csv")
+bike_ride_202005 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202005-divvy-tripdata.csv")
+bike_ride_202006 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202006-divvy-tripdata.csv")
+bike_ride_202007 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202007-divvy-tripdata.csv")
+bike_ride_202008 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202008-divvy-tripdata.csv")
+bike_ride_202009 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202009-divvy-tripdata.csv")
+bike_ride_202010 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202010-divvy-tripdata.csv")
+bike_ride_202011 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202011-divvy-tripdata.csv")
+bike_ride_202012 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202012-divvy-tripdata.csv")
+bike_ride_202101 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202101-divvy-tripdata.csv")
+bike_ride_202102 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202102-divvy-tripdata.csv")
+bike_ride_202103 <- read_csv(file = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\202103-divvy-tripdata.csv")
+
+```
+
+The marketing analyst determined to change the columns data type from _character_ to _double_ to help merge all the datasets into one. Per warning messages from the console, the marketing analyst noted the datasets contain NULL observations.
+
+```{r}
+bike_ride_202012$start_station_id <- as.double(bike_ride_202012$start_station_id)
+bike_ride_202012$end_station_id <- as.double(bike_ride_202012$end_station_id)
+bike_ride_202101$start_station_id <- as.double(bike_ride_202101$start_station_id)
+bike_ride_202101$end_station_id <- as.double(bike_ride_202101$end_station_id)
+bike_ride_202102$start_station_id <- as.double(bike_ride_202102$start_station_id)
+bike_ride_202102$end_station_id <- as.double(bike_ride_202102$end_station_id)
+bike_ride_202103$start_station_id <- as.double(bike_ride_202103$start_station_id)
+bike_ride_202103$end_station_id <- as.double(bike_ride_202103$end_station_id)
+```
+
+
+The analyst decided to export the datasets with the updated data types to compile them with others.
+```{r}
+write.csv(bike_ride_202012, "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\Dataset\\updated_202012.csv", row.names = FALSE )
+write.csv(bike_ride_202101, "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\Dataset\\updated_202101.csv", row.names = FALSE )
+write.csv(bike_ride_202102, "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\Dataset\\updated_202102.csv", row.names = FALSE )
+write.csv(bike_ride_202103, "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\Dataset\\updated_202103.csv", row.names = FALSE )
+```
+
+
+The analyst combined all 12 month data into one dataframe ("bikerides"). 
+```{r}
+bikerides <- list.files(path = "C:\\Users\\danie\\Documents\\Google Data Analytics Cert\\Dataset", pattern = "*.csv", full.names = TRUE) %>% 
+    lapply(read_csv) %>%
+    bind_rows
+
+glimpse(bikerides)
+```
+
+
+To build an index of station IDs to find the missing "start_station_id", the analyst grouped and created a dataframe of the distinct "start_station_id" and "start_station_name"; the analyst noted that the station names and IDs are unique regardless of start or end station qualifier.
+```{r}
+station_id <- bikerides %>% 
+  filter(!is.na(start_station_id), !is.na(end_station_id)) %>%
+  select(start_station_id, start_station_name) %>%
+  group_by(start_station_id, start_station_name) %>%
+  distinct(start_station_id, start_station_name, .keep_all = TRUE)
+
+station_ids = as.data.frame(station_id)
+
+```
+
+
+The marketing analyst matched the ID to names, using the dataframe created above.
+```{r}
+bikerides$start_station_id <- station_ids[match(bikerides$start_station_name, station_ids$start_station_name), 1]
+bikerides$end_station_id <- station_ids[match(bikerides$end_station_name, station_ids$start_station_name), 1]
+
+```
+
+The analyst then checked to see if the updated dataframe has any NULL observations.
+```{r}
+glimpse(bikerides %>% filter(is.na(start_station_name)))
+glimpse(bikerides %>% filter(is.na(end_station_name)))
+
+```
+
+The analyst exported the NULL observations into separate dataframes ("bikerides_start_null" and "bikerides_end_null") with a total of *195,185* observations [(start station NULL, 122,175) + (end station NULL, 143242) - (NULL values on both start and end station, 71,232).
+```{r}
+bikerides_start_null <- bikerides %>% 
+   filter(is.na(start_station_name)) 
+
+bikerides_end_null <- bikerides %>% 
+   filter(is.na(end_station_name))
+
+bikerides_null <- bikerides %>% 
+   filter(is.na(start_station_name), is.na(end_station_name))
+
+tibble(bikerides_start_null)
+tibble(bikerides_end_null)
+tibble(bikerides_null)
+```
+
+The analyst filtered out the NULL observations from the dataframe to contain complete data.
+
+```{r}
+bikerides <- bikerides %>% 
+   filter(!is.na(start_station_name), !is.na(end_station_name)) %>%
+   filter(!is.na(start_station_name)) %>%
+   filter(!is.na(end_station_name))
+
+glimpse(bikerides)
+```
+
+## Data Preparation
+The analyst created two additional attributes ("trip_duration" and "day_of_week") to help understand the casual and member groups' bike usage better. 
+
+
+The analyst added "trip_duration" attribute by calculating the difference between the trip end time and start time in minutes. 
+
+```{r}
+bikerides$trip_duration <- difftime(bikerides$ended_at, bikerides$started_at, units = 'mins')
+
+```
+
+The analyst then added "day_of_week" and "month" attributes by identifying the weekday and month of the trip start dates.
+
+```{r}
+bikerides$day_of_week <- weekdays(as.Date(bikerides$started_at))
+bikerides$month <- months(as.Date(bikerides$started_at))
+bikerides$month_yr <- as.yearmon(bikerides$started_at)
+
+```
+
+
+## Data Analysis
+Through the analysis, the analyst wanted to understand:
+* How do casual and member groups use the bike-share service differently?; and 
+* Why would a casual rider get the annual bike-share membership?
+
+The analyst first calculated the historic bike-share usage trend of the two groups.
+```{r}
+bikerides %>% group_by(member_casual) %>%
+  dplyr::summarize(Mean = mean(trip_duration))
+ 
+```
+
+```{r}
+  count(bikerides, "member_casual")
+```
+
+Per results above, the analyst noted that the casual riders take longer rides than the members whereas the members take shorter but more frequent rides than the casual riders.
+
+The analyst wanted to understand where are the most frequently visited stations for both casual riders and members.
+```{r}
+bikeride_trips_casual <- bikerides %>% group_by(member_casual) %>%
+dplyr::count(start_station_name, end_station_name) %>%
+filter(member_casual == 'casual')
+
+bikeride_trips_member <- bikerides %>% group_by(member_casual) %>%
+dplyr::count(start_station_name, end_station_name) %>%
+filter(member_casual == 'member')
+
+bikeride_trips_casual <- bikeride_trips_casual[order(bikeride_trips_casual$n, decreasing = TRUE), ]
+bikeride_trips_member <- bikeride_trips_member[order(bikeride_trips_member$n, decreasing = TRUE), ]
+
+
+```
+
+Per analysis performed above, the analyst noted that the casual riders tend start and end trips at the same stations whereas the members tend to start and end trips at different stations.
+
+## Results Sharing
+Refer to the graphs and tables below for the summary of the ridership dataset from April, 2020 to March, 2021 analysis:
+
+```{r}
+
+#Total ridership count comparison
+ggplot(data=bikerides) + 
+  geom_bar(mapping=aes(x=member_casual, fill = member_casual)) +
+  labs(title = "Total count of trips: Casual Riders vs Members", subtitle = "From April, 2020 to March, 2021") +
+  scale_y_continuous(labels = comma)
+
+#Ridership Trend per Month
+ridership_graph <- setNames(data.frame(table(bikerides$month_yr)), c("Month_Yr", "Count"))
+month_yr_index <- c("Apr 2020", "May 2020", "Jun 2020", "Jul 2020", "Aug 2020", "Sep 2020", "Oct 2020", "Nov 2020", "Dec 2020", "Jan 2021", "Feb 2021", "Mar 2021")
+ridership_graph <- ridership_graph %>% arrange(match(Month_Yr, month_yr_index))
+
+ggplot(data=ridership_graph) + 
+ geom_line(mapping=aes(x=(ordered(Month_Yr, month_yr_index)), y=Count, group = 1)) +
+  labs(title = "Number of Trips per Month", subtitle = "From April, 2020 to March, 2021") +
+  scale_y_continuous(labels = comma) +
+  labs(x = "Month, Year") +
+  theme(axis.text.x = element_text(angle = 45))
+
+#Popular days
+day_index <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+
+ggplot(data=bikerides %>%
+         group_by(day_of_week) %>%
+         summarize(day_of_week)) + 
+  geom_bar(mapping=aes(x=(ordered(day_of_week, day_index)))) +
+  labs(title = "Number of Trips per Days by Member and Casual Riders", subtitle = "From April, 2020 to March, 2021", x = "
+       Day", y = "Number of Trips") +
+  #scale_x_discrete(labels = day_index) +
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x = element_text(angle = 45)) +
+  facet_wrap(~bikerides$member_casual)
+
+#Top 10 Trip Courses for Casual Riders
+head(bikeride_trips_casual, n = 10)
+
+#Top 10 Trip Courses for Members
+head(bikeride_trips_member, n = 10)
+
+
+```
+Per analysis performed, the marketing analyst noted the following : 
+
+* Members ride *shorter* but have *more frequent* trips than the casual riders;
+* The historical data indicate that *August* is the month with the *highest ridership*, and *February* is the month with the *lowest ridership*.;
+* The historical data indicate that *Saturday* is the day with the *highest ridership*, and *Monday* is the month with the *lowest ridership*
+* The historical data indicate *"Streeter Dr & Grand Ave" to "Streeter Dr & Grand Ave"* and *"Lake Shore Dr & Monroe St" to "Lake Shore Dr & Monroe St"* were the most popular courses for the *casual riders*.
+* The historical data indicate *"MLK Jr Dr & 29th St" to "State St & 33rd St"* and *"State St & 33rd St" to "MLK Jr Dr & 29th St"* were the most popular courses for the *members*.
+
+## Recommendations
+The marketing analyst recommends the following based on the analysis performed: 
+
+* Focus marketing campaign around "Streeter Dr & Grand Ave" and "Lake Shore Dr & Monroe St" stations on weekends to better target annual membership products to the casual riders.
+* Focus marketing campaign around "MLK Jr Dr & 29th St" and "State St & 33rd St" stations to better target membership retention programs to the members.
+* Launch marketing campaign by June to maximize the summer season. 
+
+
